@@ -19,6 +19,6 @@ export MB_JETTY_SSL="true"
 export MB_JETTY_SSL_Port="8443"
 export MB_JETTY_SSL_Keystore="/home/metabase/keystore/keystore.jks"
 export MB_JETTY_SSL_Keystore_Password="<your keystore password>"
-## Uncomment this for SSL/TLS deniggomg
+## Uncomment this for SSL/TLS debugging
 ##export MB_JAVA_ARGS="-DDEBUG=true -Dorg.eclipse.jetty.LEVEL=DEBUG -Djavax.net.debug=ssl,handshake,data"
 

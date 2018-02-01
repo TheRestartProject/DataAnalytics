@@ -1,0 +1,35 @@
+#!/bin/sh -
+
+## Data Import
+## This script imports data to the Restart data warehouse for use by data analytics tools e.g. Metabase
+## Only a subset of tables are imported
+## This is intended to be run relatively infrequently, e.g. nightly, to refresh the data warehouse
+##
+## Optionally pass a sql filename as first parameter to load this into the data warehouse rather than fetching from Fixometer
+
+SCRIPT_PATH=`(cd \`dirname $0\`/..; pwd)`
+
+## Load configuration settings
+while read line; do
+  eval SOURCE_$line
+done < $SCRIPT_PATH/config/fixometer.db.config
+
+while read line; do
+  eval TARGET_$line
+done < $SCRIPT_PATH/config/warehouse.db.config
+
+TMPAREA=`mktemp -d`
+
+if [ -n "$1" -a -f $1 ]; then
+  TARGET_FILE=$1
+else
+  ## Grab data from Fixometer
+  TARGET_FILE=$TMPAREA/fixometer.sql
+  mysqldump -u $SOURCE_DB_USER --single-transaction --compress -p$SOURCE_DB_PASSWORD --host=$SOURCE_DB_HOST --port=$SOURCE_DB_PORT $SOURCE_DB_NAME $SOURCE_TABLES > $TARGET_FILE
+fi
+
+## Load into warehouse
+mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $TARGET_FILE
+
+rm -rf $TMPAREA
+exit 0

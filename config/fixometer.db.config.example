@@ -1,0 +1,6 @@
+DB_USER=fixometer_root
+DB_PASSWORD=<password>
+DB_NAME=fixometer_dev
+DB_HOST=127.0.0.1
+DB_PORT=3306
+TABLES="categories category_revisions clusters devices events events_users groups"
