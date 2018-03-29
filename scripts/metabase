@@ -25,6 +25,10 @@ PIDFILE=/var/run/metabase.pid
 LOGFILE=/var/log/metabase.log
 
 start() {
+  # Setup iptables prerouting rule
+  sudo iptables -t nat -D PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
+  sudo iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443
+
   # ensure we only run 1 Metabase instance
   if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE"); then
     echo 'Metabase already running' >&2
