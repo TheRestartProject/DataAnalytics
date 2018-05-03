@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import configparser
+import sys, os
+import requests
+import argparse
+
+## Load config
+config = configparser.ConfigParser()
+config.read(os.path.dirname(sys.argv[0]) + '/../config/uclassify.ini')
+configBase = config['uclassify.com']
+UCLASSIFY_CLASSIFIER = configBase['ClassifierName']     #'Device Category'
+UCLASSIFY_READ_TOKEN = configBase['ReadToken'] 
+UCLASSIFY_BASE_URL = configBase['serviceURL'] + configBase['User']
+
+parser = argparse.ArgumentParser(description='Classify some text by device category using uClassify')
+parser.add_argument('text', type=str, help='text to classify')
+parser.add_argument('-v', '--verbosity', default=0, action='count', help='increase output verbosity')
+args = parser.parse_args()
+
+text = args.text
+
+response = requests.post(UCLASSIFY_BASE_URL + '/' + UCLASSIFY_CLASSIFIER +'/classify', \
+    headers = {'Authorization': 'Token ' + UCLASSIFY_READ_TOKEN }, \
+    json = {'texts':[text]})
+#print(response.status_code)
+response.raise_for_status() 
+data = response.json()
+
+classification = {}
+## Convert to dictionary
+for item in data[0]['classification']:
+  classification[item['className']] = item['p']
+
+# Find the category(s) with the highest probability
+mostLikelyClass = sorted(classification, key=classification.__getitem__, reverse=True)[0]
+leastLikelyClass = sorted(classification, key=classification.__getitem__, reverse=False)[0]
+
+if classification[mostLikelyClass] > classification[leastLikelyClass]:
+  # 
+  if args.verbosity >= 2:
+    # High verbosity - Output all the classes and probabilities
+    for classResponse in classification:
+      print('{0: >6}%'.format(str(round(classification[classResponse]*100,2))) + ' : ' + classResponse)
+  elif args.verbosity == 1:
+    # Medium verbosity - output the most likely class and its probability 
+    print('{0: >6}%'.format(str(round(classification[mostLikelyClass]*100,2))) + ' : ' + mostLikelyClass)
+  else:
+    # Low verbosity - just output the most likely class
+    print(mostLikelyClass)
+else:
+  print("Classifier was not able to match to a category")
+
+

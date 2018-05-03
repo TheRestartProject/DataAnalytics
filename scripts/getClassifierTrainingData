@@ -1,0 +1,12 @@
+#!/bin/sh -
+
+REPORTFILE=/tmp/query_result.xml
+
+## Get device brand/model/comment and the category
+## Exclude any where category is 'Misc' (idcategories=46)
+mysql --xml -u fixometer_root --password=str0ngp4ssw0rd! -t fixometer_dev > $REPORTFILE << ENDSQL
+select CONCAT_WS(' ', d.brand, d.model, d.problem) as 'device.text', d.iddevices as 'device.id', c.idcategories as 'category.id', c.name as 'category.name' from devices d, categories c where d.category=c.idcategories and c.idcategories!=46;
+ENDSQL
+
+echo "Done; training data is in $REPORTFILE"
+exit 0

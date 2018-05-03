@@ -1,0 +1,9 @@
+[uclassify.com]
+User = restartproject
+ClassifierName = Device Category
+ReadToken = ************
+WriteToken = ************
+ServiceURL = https://api.uclassify.com/v1/
+
+
+

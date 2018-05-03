@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+
+import requests
+import xml.etree.ElementTree as ET
+import sys, os
+import re, string
+import configparser
+
+## createClassifier <trainingdata.xml>
+
+## Load config
+config = configparser.ConfigParser()
+config.read(os.path.dirname(sys.argv[0]) + '/../config/uclassify.ini')
+configBase = config['uclassify.com']
+UCLASSIFY_CLASSIFIER = configBase['ClassifierName']	#'Device Category'
+UCLASSIFY_WRITE_TOKEN = configBase['WriteToken'] 
+UCLASSIFY_BASE_URL = configBase['serviceURL'] + configBase['User']
+
+USE_API = True
+
+## Load the xml training file supplied in commandline
+if len(sys.argv) < 2:
+  ## File not supplied - fatal
+  sys.exit('Usage: createClassifier <xml training data>')
+else:
+  datasource = sys.argv[1]
+
+e = ET.parse(datasource).getroot()
+## Construct a dictionary of training phrases keyed by category name
+trainingData = {}
+for rowElem in e.iter('row'):
+  text = rowElem.findall('field[@name="device.text"]')[0].text
+  cleanText = " ".join(re.sub(r'([^\s\w]|_)+', '', text).split())		## Preserve spaces and alphanumeric characters only
+  category = rowElem.findall('field[@name="category.name"]')[0].text
+  categoryName = " ".join(re.sub(r'([^\s\w]|_)+', '', category).split())
+  if categoryName in trainingData:
+    trainingData[categoryName].append(cleanText)
+  else:
+    trainingData[categoryName] = [cleanText]
+  
+print('Categories: ' + str(trainingData.keys()))
+
+if USE_API:
+  ## Remove classifier if it already exists
+  response = requests.delete(UCLASSIFY_BASE_URL + '/' + UCLASSIFY_CLASSIFIER, \
+      headers = {'Authorization': 'Token ' + UCLASSIFY_WRITE_TOKEN }, \
+      json = {} )
+  print(response.status_code)
+  
+  ## Create the classifier
+  response = requests.post(UCLASSIFY_BASE_URL, \
+      headers = {'Authorization': 'Token ' + UCLASSIFY_WRITE_TOKEN }, \
+      json = {'classifierName': UCLASSIFY_CLASSIFIER })
+  print('Create classifier "' + UCLASSIFY_CLASSIFIER + '" : response=' + str(response.status_code))
+  response.raise_for_status()		## The create action should always succeed, so raise fatal if it fails 
+  print(response.text)
+
+## Create a new uClassify class for each device category  
+for categoryName in trainingData.keys():
+  if USE_API:
+    response = requests.post(UCLASSIFY_BASE_URL + '/' + UCLASSIFY_CLASSIFIER + '/addClass', \
+    headers = {'Authorization': 'Token ' + UCLASSIFY_WRITE_TOKEN}, \
+    json = {'className':categoryName})
+    print('Create class "' + categoryName +'" : response=' + str(response.status_code))
+    response.raise_for_status()	## Raise fatal if we could not create the class
+
+if USE_API:
+  for className in trainingData.keys():
+    print('Training class: "' + className + '"')
+    print('Training data : "' + str(trainingData[className]) + '"') 
+    response = requests.post(UCLASSIFY_BASE_URL + '/' + UCLASSIFY_CLASSIFIER + '/' + className + '/train', \
+      headers = {'Authorization': 'Token ' + UCLASSIFY_WRITE_TOKEN}, \
+      json = {'texts': trainingData[className]})
+    print(response.status_code)
+    print(response.text) 
