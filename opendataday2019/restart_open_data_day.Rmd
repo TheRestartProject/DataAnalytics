@@ -1,0 +1,158 @@
+---
+title: "Restart Project - Open Data Day"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(quanteda)
+library(topicmodels)
+```
+
+### General data observations
+
+```{r}
+raw <- read.csv("devices_all.csv", as.is = TRUE)
+
+glimpse(raw)
+```
+
+```{r}
+raw %>% 
+  group_by(Category) %>%
+  tally() %>%
+  arrange(desc(n))
+```
+
+Create 'computers' subset for further analysis
+
+```{r}
+computers <- filter(raw, Category %in% c("Laptop medium",
+                                         "Laptop small",
+                                         "Laptop large",
+                                         "Tablet", 
+                                         "Desktop computer"))
+```
+
+Some issues with frequent blank comments for some groups
+
+```{r}
+computers %>%
+  filter(Comments == "") %>%
+  group_by(Restart.Group) %>%
+  summarise(count_blank = n()) %>%
+  arrange(desc(count_blank))
+```
+
+### Text statistics
+
+Create document-feature-matrix via quanteda::dfm() and check frequent terms (single words and bigrams) appearing in Comments
+
+```{r}
+computer_dfm <- dfm(computers$Comments,
+                    remove = c(stopwords("english")),
+                    remove_punct = TRUE,
+                    ngrams = c(1, 2))
+
+topfeatures(computer_dfm, 100) %>%
+  data.frame(count = .)
+
+```
+
+
+```{r fig.width=8}
+textplot_wordcloud(computer_dfm, min_count = 10, rotation = 0)
+```
+
+### Keyword tagging (by priority)
+
+Guided by above and the categories being used for manual labelling, create own 'keyword' matches. This is sequential/prioritised so each repair is only tagged once (at most). The choice of terms and grouping could be refined or even feedback to the data collection process:
+
+```{r}
+tagged <-
+  computers %>%
+  mutate(comment_tag = case_when(
+    Comments == "" ~ "*blank*",
+    grepl("screen", Comments, ignore.case = TRUE) ~ "screen",
+    grepl("battery|power", Comments, ignore.case = TRUE) ~ "battery/power",
+    grepl("slow|software|linux|boot|os", Comments, ignore.case = TRUE) ~ "slow/software/linux/boot/os",
+    grepl("SSD|hard\\sdrive|hd|ram|memory", Comments, ignore.case = TRUE) ~ "SSD/hard-drive/ram/memory",
+    grepl("key", Comments, ignore.case = TRUE) ~ "key",
+    grepl("port|connect", Comments, ignore.case = TRUE) ~ "port/connect",
+    grepl("motherboard", Comments, ignore.case = TRUE) ~ "motherboard",
+    grepl("fan", Comments, ignore.case = TRUE) ~ "fan",
+    grepl("malware|virus", Comments, ignore.case = TRUE) ~ "malware/virus",
+    # if not tagged by above...
+    TRUE ~ "*untagged*"
+  ))
+
+tagged %>%
+  group_by(comment_tag) %>%
+  summarise(
+    n = n(),
+    pct_fixed = round(mean(Repair.Status == "Fixed"), 2),
+    pct_rprbl = round(mean(Repair.Status == "Repairable"), 2)
+    ) %>%
+  arrange(desc(n))
+```
+
+Chart of counts by device category and tags we've created:
+
+```{r fig.width=8}
+to_facet <-
+  tagged %>%
+  group_by(Category, comment_tag) %>%
+  summarise(
+    count = n(),
+    pct_fixed = round(mean(Repair.Status == "Fixed"), 2),
+    pct_rprbl = round(mean(Repair.Status == "Repairable"), 2)
+    ) %>%
+  arrange(desc(count)) %>%
+  ungroup() %>%
+  mutate(higher_category = case_when(
+    grepl("Laptop", Category) == TRUE ~ "Laptop",
+    Category == "Desktop computer" ~ "Desktop",
+    Category == "Tablet" ~ "Tablet"
+  ))
+
+ggplot(data = to_facet,
+       aes(x = comment_tag, y = count)) + 
+  geom_col(aes(fill = higher_category)) + 
+  coord_flip()  + 
+  facet_grid(higher_category ~ .) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(x = NULL)
+```
+
+
+### Topic modelling
+
+These topics are generated automatically from the data, based on similarities between comment entries. The choice of the number of topics to aim for is subjective and it's worth trying different values. Some of the topics are coherent but, ultimately, the text comments seem to be too short (and repetitive in some cases?) to give clear cut topics.
+
+```{r}
+n_topic <- 4
+computer_topic <- convert(computer_dfm, to = "topicmodels")
+computer_lda   <- LDA(computer_topic, k = n_topic)
+terms(computer_lda, 7)
+```
+
+
+### Keyness to status
+
+Here we check which terms are most distinctive to different repair statuses ('End of life' versus other for simplicity). Intuitively, it makes sense: motherboard problems normally mean end-of-life; whereas a slow computer has a good chance of being fixable
+
+```{r fig.width=8}
+tstat_key <- textstat_keyness(computer_dfm, 
+                target = computers$Repair.Status == "End of life")
+
+attr(tstat_key, 'groups') <- c('End of life',
+                               'Fixed/Repairable/Unknown')
+
+textplot_keyness(tstat_key) + theme(legend.position = "top")
+```
