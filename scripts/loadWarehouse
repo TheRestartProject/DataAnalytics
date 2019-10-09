@@ -31,5 +31,12 @@ fi
 ## Load into warehouse
 mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $TARGET_FILE
 
+# Add time dimension table to aid some queries in Metabase
+mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < createTimeDimension.sql
+
+# Fix character encodings (only required until we fix this upstream)
+mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < fixCharacterEncodings.sql
+
+
 rm -rf $TMPAREA
 exit 0
