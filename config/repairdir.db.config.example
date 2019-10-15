@@ -1,0 +1,6 @@
+export REPAIRDIR_DB_USER=user
+export REPAIRDIR_DB_PASSWORD=pass
+export REPAIRDIR_DB_NAME=thedb
+export REPAIRDIR_SSH_USER=sshuser
+export REPAIRDIR_HOST=thehost
+export REPAIRDIR_PORT=1234

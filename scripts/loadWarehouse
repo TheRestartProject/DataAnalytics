@@ -1,4 +1,4 @@
-#!/bin/sh -
+#!/bin/bash
 
 ## Data Import
 ## This script imports data to the Restart data warehouse for use by data analytics tools e.g. Metabase
@@ -9,34 +9,54 @@
 
 SCRIPT_PATH=`(cd \`dirname $0\`/..; pwd)`
 
-## Load configuration settings
-while read line; do
-  eval SOURCE_$line
-done < $SCRIPT_PATH/config/fixometer.db.config
+TMPAREA=`mktemp -d`
+
+echo ""
+echo "Loading configuation settings..."
+source $SCRIPT_PATH/config/fixometer.db.config
+source $SCRIPT_PATH/config/repairdir.db.config
 
 while read line; do
   eval TARGET_$line
 done < $SCRIPT_PATH/config/warehouse.db.config
 
-TMPAREA=`mktemp -d`
+echo ""
+echo "Pulling Fixometer data..."
+TARGET_FILE=$TMPAREA/fixometer.sql
+ssh -p $FIXO_PORT $FIXO_SSH_USER@$FIXO_HOST "mysqldump -u $FIXO_DB_USER --single-transaction --compress --password='$FIXO_DB_PASSWORD' --default-character-set=utf8mb4 $FIXO_DB_NAME" > $TARGET_FILE
+echo "Done."
 
-if [ -n "$1" -a -f $1 ]; then
-  TARGET_FILE=$1
-else
-  ## Grab data from Fixometer
-  TARGET_FILE=$TMPAREA/fixometer.sql
-  mysqldump -u $SOURCE_DB_USER --single-transaction --compress -p$SOURCE_DB_PASSWORD --host=$SOURCE_DB_HOST --port=$SOURCE_DB_PORT $SOURCE_DB_NAME $SOURCE_TABLES > $TARGET_FILE
-fi
+echo ""
+echo "Pulling Repair Directory data..."
+TARGET_FILE_REPAIRDIR=$TMPAREA/repairdirectory.sql
+ssh -p $REPAIRDIR_PORT $REPAIRDIR_SSH_USER@$REPAIRDIR_HOST "mysqldump -u $REPAIRDIR_DB_USER --single-transaction --compress --password='$REPAIRDIR_DB_PASSWORD' --default-character-set=utf8mb4 $REPAIRDIR_DB_NAME" > $TARGET_FILE_REPAIRDIR
+echo "Done."
 
-## Load into warehouse
+# Not using direct MySQL connection as MySQL not currently open to outside connections.
+# TBD whether should prefer that over ssh connection.
+# mysqldump -u $SOURCE_DB_USER --single-transaction --compress -p$SOURCE_DB_PASSWORD --host=$SOURCE_DB_HOST --port=$SOURCE_DB_PORT $SOURCE_DB_NAME $SOURCE_TABLES > $TARGET_FILE
+
+echo ""
+echo "Loading into warehouse..."
 mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $TARGET_FILE
+mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT warehouse_repairdirectory < $TARGET_FILE_REPAIRDIR
+echo "Done."
 
-# Add time dimension table to aid some queries in Metabase
+echo ""
+echo "Add time dimension table to aid Metabase queries..."
 mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $SCRIPT_PATH/scripts/createTimeDimension.sql
+echo "Done."
 
-# Fix character encodings (only required until we fix this upstream)
+echo ""
+echo "Fix character encodings (only required until we fix this upstream)..."
 mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $SCRIPT_PATH/scripts/fixCharacterEncodings.sql
+echo "Done."
 
-
+echo ""
+echo "Removing temporary working area: $TMPAREA"
 rm -rf $TMPAREA
+
+echo ""
+echo "Finished."
+
 exit 0
