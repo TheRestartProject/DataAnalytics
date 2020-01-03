@@ -38,18 +38,36 @@ echo "Done."
 
 echo ""
 echo "Loading into warehouse..."
-mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $TARGET_FILE
-mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT warehouse_repairdirectory < $TARGET_FILE_REPAIRDIR
+
+echo ""
+echo "Restarters.net..."
+
+echo ""
+echo "Find/replace on DB info..."
+sed -i "s/$FIXO_DB_NAME/$TARGET_DB_NAME/g" $TARGET_FILE
+sed -i "s/$FIXO_DB_USER_ORIGINAL/$TARGET_DB_USER_METABASE/g" $TARGET_FILE
+
+echo ""
+echo "Load data..."
+mysql -u$TARGET_DB_USER_LOADER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $TARGET_FILE
+
+echo ""
+echo "Repair Directory..."
+
+echo ""
+echo "Load data..."
+mysql -u$TARGET_DB_USER_LOADER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT warehouse_repairdirectory < $TARGET_FILE_REPAIRDIR
+
 echo "Done."
 
 echo ""
 echo "Add time dimension table to aid Metabase queries..."
-mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $SCRIPT_PATH/scripts/createTimeDimension.sql
+mysql -u$TARGET_DB_USER_LOADER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $SCRIPT_PATH/scripts/createTimeDimension.sql
 echo "Done."
 
 echo ""
 echo "Fix character encodings (only required until we fix this upstream)..."
-mysql -u$TARGET_DB_USER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $SCRIPT_PATH/scripts/fixCharacterEncodings.sql
+mysql -u$TARGET_DB_USER_LOADER -p$TARGET_DB_PASSWORD --host=$TARGET_DB_HOST --port=$TARGET_DB_PORT $TARGET_DB_NAME < $SCRIPT_PATH/scripts/fixCharacterEncodings.sql
 echo "Done."
 
 echo ""

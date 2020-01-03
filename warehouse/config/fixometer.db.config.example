@@ -4,3 +4,5 @@ export FIXO_DB_NAME=thedb
 export FIXO_SSH_USER=sshuser
 export FIXO_HOST=thehost
 export FIXO_PORT=1234
+# this is used only for find/replace in the mysqldump
+export FIXO_DB_USER_ORIGINAL=<username_on_prod>

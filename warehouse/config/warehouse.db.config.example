@@ -1,5 +1,6 @@
-DB_USER=batchloader
+DB_USER_LOADER=batchloader
 DB_PASSWORD=<password>
 DB_NAME=warehouse_fixometer
 DB_HOST=127.0.0.1
 DB_PORT=3306
+DB_USER_METABASE=<metabase_db_user>
